@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 import * as imageGeneration from "./_core/imageGeneration";
@@ -44,6 +44,10 @@ function createUnauthContext(): TrpcContext {
 }
 
 describe("image router", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   describe("image.generate", () => {
     it("requires authentication", async () => {
       const ctx = createUnauthContext();
@@ -119,6 +123,21 @@ describe("image router", () => {
       });
 
       expect(result).toEqual(mockResult);
+    });
+
+    it("handles errors from generateImage", async () => {
+      const ctx = createAuthContext();
+      const caller = appRouter.createCaller(ctx);
+
+      vi.spyOn(imageGeneration, "generateImage").mockRejectedValue(
+        new Error("Service unavailable")
+      );
+
+      await expect(
+        caller.image.generate({
+          prompt: "A beautiful landscape",
+        })
+      ).rejects.toThrow("Service unavailable");
     });
   });
 });

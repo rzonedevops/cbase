@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 import * as map from "./_core/map";
@@ -44,6 +44,10 @@ function createUnauthContext(): TrpcContext {
 }
 
 describe("maps router", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   describe("maps.geocode", () => {
     it("requires authentication", async () => {
       const ctx = createUnauthContext();
@@ -100,6 +104,21 @@ describe("maps router", () => {
       });
 
       expect(result).toEqual(mockResult);
+    });
+
+    it("handles errors from makeRequest", async () => {
+      const ctx = createAuthContext();
+      const caller = appRouter.createCaller(ctx);
+
+      vi.spyOn(map, "makeRequest").mockRejectedValue(
+        new Error("API request failed")
+      );
+
+      await expect(
+        caller.maps.geocode({
+          address: "1600 Amphitheatre Parkway, Mountain View, CA",
+        })
+      ).rejects.toThrow("API request failed");
     });
   });
 
@@ -180,6 +199,27 @@ describe("maps router", () => {
         })
       ).rejects.toThrow();
     });
+
+    it("validates radius is positive and within limit", async () => {
+      const ctx = createAuthContext();
+      const caller = appRouter.createCaller(ctx);
+
+      // Test negative radius
+      await expect(
+        caller.maps.nearbySearch({
+          location: "37.42,-122.08",
+          radius: -1000,
+        })
+      ).rejects.toThrow();
+
+      // Test radius exceeding limit
+      await expect(
+        caller.maps.nearbySearch({
+          location: "37.42,-122.08",
+          radius: 60000,
+        })
+      ).rejects.toThrow();
+    });
   });
 
   describe("maps.placeDetails", () => {
@@ -189,7 +229,7 @@ describe("maps router", () => {
 
       await expect(
         caller.maps.placeDetails({
-          place_id: "ChIJN1t_tDeuEmsRUsoyG83frY4",
+          placeId: "ChIJN1t_tDeuEmsRUsoyG83frY4",
         })
       ).rejects.toThrow();
     });

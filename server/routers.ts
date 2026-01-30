@@ -493,7 +493,15 @@ const imageRouter = router({
       })).optional(),
     }))
     .mutation(async ({ input }) => {
-      return generateImage(input);
+      try {
+        return await generateImage(input);
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Image generation failed',
+          cause: error,
+        });
+      }
     }),
 });
 
@@ -511,7 +519,15 @@ const mapsRouter = router({
           message: 'Either address or latlng must be provided',
         });
       }
-      return makeRequest<GeocodingResult>('/maps/api/geocode/json', input);
+      try {
+        return await makeRequest<GeocodingResult>('/maps/api/geocode/json', input);
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Geocoding request failed',
+          cause: error,
+        });
+      }
     }),
 
   directions: protectedProcedure
@@ -523,7 +539,15 @@ const mapsRouter = router({
       alternatives: z.boolean().optional(),
     }))
     .query(async ({ input }) => {
-      return makeRequest<DirectionsResult>('/maps/api/directions/json', input);
+      try {
+        return await makeRequest<DirectionsResult>('/maps/api/directions/json', input);
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Directions request failed',
+          cause: error,
+        });
+      }
     }),
 
   distanceMatrix: protectedProcedure
@@ -534,45 +558,82 @@ const mapsRouter = router({
       units: z.enum(['metric', 'imperial']).optional(),
     }))
     .query(async ({ input }) => {
-      return makeRequest<DistanceMatrixResult>('/maps/api/distancematrix/json', input);
+      try {
+        return await makeRequest<DistanceMatrixResult>('/maps/api/distancematrix/json', input);
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Distance matrix request failed',
+          cause: error,
+        });
+      }
     }),
 
   placeSearch: protectedProcedure
     .input(z.object({
       query: z.string(),
       location: z.string().optional(),
-      radius: z.number().optional(),
+      radius: z.number().positive().max(50000).optional(),
       type: z.string().optional(),
     }))
     .query(async ({ input }) => {
-      return makeRequest<PlacesSearchResult>('/maps/api/place/textsearch/json', input);
+      try {
+        return await makeRequest<PlacesSearchResult>('/maps/api/place/textsearch/json', input);
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Place search request failed',
+          cause: error,
+        });
+      }
     }),
 
   nearbySearch: protectedProcedure
     .input(z.object({
       location: z.string(),
-      radius: z.number(),
+      radius: z.number().positive().max(50000),
       type: z.string().optional(),
       keyword: z.string().optional(),
     }))
     .query(async ({ input }) => {
-      return makeRequest<PlacesSearchResult>('/maps/api/place/nearbysearch/json', input);
+      try {
+        return await makeRequest<PlacesSearchResult>('/maps/api/place/nearbysearch/json', input);
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Nearby search request failed',
+          cause: error,
+        });
+      }
     }),
 
   placeDetails: protectedProcedure
     .input(z.object({
-      place_id: z.string(),
+      placeId: z.string(),
       fields: z.string().optional(),
     }))
     .query(async ({ input }) => {
-      return makeRequest<PlaceDetailsResult>('/maps/api/place/details/json', input);
+      try {
+        // Convert placeId to place_id for API compatibility
+        const apiParams = {
+          place_id: input.placeId,
+          fields: input.fields,
+        };
+        return await makeRequest<PlaceDetailsResult>('/maps/api/place/details/json', apiParams);
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Place details request failed',
+          cause: error,
+        });
+      }
     }),
 
   elevation: protectedProcedure
     .input(z.object({
       locations: z.string().optional(),
       path: z.string().optional(),
-      samples: z.number().optional(),
+      samples: z.number().positive().max(512).optional(),
     }))
     .query(async ({ input }) => {
       if (!input.locations && !input.path) {
@@ -581,7 +642,15 @@ const mapsRouter = router({
           message: 'Either locations or path must be provided',
         });
       }
-      return makeRequest<ElevationResult>('/maps/api/elevation/json', input);
+      try {
+        return await makeRequest<ElevationResult>('/maps/api/elevation/json', input);
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Elevation request failed',
+          cause: error,
+        });
+      }
     }),
 
   timeZone: protectedProcedure
@@ -590,17 +659,33 @@ const mapsRouter = router({
       timestamp: z.number(),
     }))
     .query(async ({ input }) => {
-      return makeRequest<TimeZoneResult>('/maps/api/timezone/json', input);
+      try {
+        return await makeRequest<TimeZoneResult>('/maps/api/timezone/json', input);
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Timezone request failed',
+          cause: error,
+        });
+      }
     }),
 
   placeAutocomplete: protectedProcedure
     .input(z.object({
       input: z.string(),
       location: z.string().optional(),
-      radius: z.number().optional(),
+      radius: z.number().positive().optional(),
     }))
-    .query(async ({ input: params }) => {
-      return makeRequest('/maps/api/place/autocomplete/json', params);
+    .query(async ({ input: requestParams }) => {
+      try {
+        return await makeRequest('/maps/api/place/autocomplete/json', requestParams);
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Place autocomplete request failed',
+          cause: error,
+        });
+      }
     }),
 });
 
