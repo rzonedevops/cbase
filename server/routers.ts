@@ -8,6 +8,10 @@ import { storagePut } from "./storage";
 import { notifyOwner } from "./_core/notification";
 import { nanoid } from "nanoid";
 import * as db from "./db";
+import { transcribeAudio } from "./_core/voiceTranscription";
+import { generateImage } from "./_core/imageGeneration";
+import { makeRequest, GeocodingResult, DirectionsResult, DistanceMatrixResult, PlacesSearchResult, PlaceDetailsResult, ElevationResult, TimeZoneResult } from "./_core/map";
+import { TRPCError } from "@trpc/server";
 
 // ============ AGENT ROUTER ============
 const agentRouter = router({
@@ -453,6 +457,238 @@ const exportRouter = router({
   }),
 });
 
+// ============ VOICE TRANSCRIPTION ROUTER ============
+const voiceRouter = router({
+  transcribe: protectedProcedure
+    .input(z.object({
+      audioUrl: z.string().url(),
+      language: z.string().optional(),
+      prompt: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const result = await transcribeAudio(input);
+      
+      // Check if it's an error
+      if ('error' in result) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: result.error,
+          cause: result,
+        });
+      }
+      
+      return result;
+    }),
+});
+
+// ============ IMAGE GENERATION ROUTER ============
+const imageRouter = router({
+  generate: protectedProcedure
+    .input(z.object({
+      prompt: z.string().min(1),
+      originalImages: z.array(z.object({
+        url: z.string().optional(),
+        b64Json: z.string().optional(),
+        mimeType: z.string().optional(),
+      })).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        return await generateImage(input);
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Image generation failed',
+          cause: error,
+        });
+      }
+    }),
+});
+
+// ============ MAPS ROUTER ============
+const mapsRouter = router({
+  geocode: protectedProcedure
+    .input(z.object({
+      address: z.string().optional(),
+      latlng: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      if (!input.address && !input.latlng) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Either address or latlng must be provided',
+        });
+      }
+      try {
+        return await makeRequest<GeocodingResult>('/maps/api/geocode/json', input);
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Geocoding request failed',
+          cause: error,
+        });
+      }
+    }),
+
+  directions: protectedProcedure
+    .input(z.object({
+      origin: z.string(),
+      destination: z.string(),
+      mode: z.enum(['driving', 'walking', 'bicycling', 'transit']).optional(),
+      waypoints: z.string().optional(),
+      alternatives: z.boolean().optional(),
+    }))
+    .query(async ({ input }) => {
+      try {
+        return await makeRequest<DirectionsResult>('/maps/api/directions/json', input);
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Directions request failed',
+          cause: error,
+        });
+      }
+    }),
+
+  distanceMatrix: protectedProcedure
+    .input(z.object({
+      origins: z.string(),
+      destinations: z.string(),
+      mode: z.enum(['driving', 'walking', 'bicycling', 'transit']).optional(),
+      units: z.enum(['metric', 'imperial']).optional(),
+    }))
+    .query(async ({ input }) => {
+      try {
+        return await makeRequest<DistanceMatrixResult>('/maps/api/distancematrix/json', input);
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Distance matrix request failed',
+          cause: error,
+        });
+      }
+    }),
+
+  placeSearch: protectedProcedure
+    .input(z.object({
+      query: z.string(),
+      location: z.string().optional(),
+      radius: z.number().positive().max(50000).optional(),
+      type: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      try {
+        return await makeRequest<PlacesSearchResult>('/maps/api/place/textsearch/json', input);
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Place search request failed',
+          cause: error,
+        });
+      }
+    }),
+
+  nearbySearch: protectedProcedure
+    .input(z.object({
+      location: z.string(),
+      radius: z.number().positive().max(50000),
+      type: z.string().optional(),
+      keyword: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      try {
+        return await makeRequest<PlacesSearchResult>('/maps/api/place/nearbysearch/json', input);
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Nearby search request failed',
+          cause: error,
+        });
+      }
+    }),
+
+  placeDetails: protectedProcedure
+    .input(z.object({
+      placeId: z.string(),
+      fields: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      try {
+        // Convert placeId to place_id for API compatibility
+        const apiParams = {
+          place_id: input.placeId,
+          fields: input.fields,
+        };
+        return await makeRequest<PlaceDetailsResult>('/maps/api/place/details/json', apiParams);
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Place details request failed',
+          cause: error,
+        });
+      }
+    }),
+
+  elevation: protectedProcedure
+    .input(z.object({
+      locations: z.string().optional(),
+      path: z.string().optional(),
+      samples: z.number().positive().max(512).optional(),
+    }))
+    .query(async ({ input }) => {
+      if (!input.locations && !input.path) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Either locations or path must be provided',
+        });
+      }
+      try {
+        return await makeRequest<ElevationResult>('/maps/api/elevation/json', input);
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Elevation request failed',
+          cause: error,
+        });
+      }
+    }),
+
+  timeZone: protectedProcedure
+    .input(z.object({
+      location: z.string(),
+      timestamp: z.number(),
+    }))
+    .query(async ({ input }) => {
+      try {
+        return await makeRequest<TimeZoneResult>('/maps/api/timezone/json', input);
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Timezone request failed',
+          cause: error,
+        });
+      }
+    }),
+
+  placeAutocomplete: protectedProcedure
+    .input(z.object({
+      input: z.string(),
+      location: z.string().optional(),
+      radius: z.number().positive().optional(),
+    }))
+    .query(async ({ input: requestParams }) => {
+      try {
+        return await makeRequest('/maps/api/place/autocomplete/json', requestParams);
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error instanceof Error ? error.message : 'Place autocomplete request failed',
+          cause: error,
+        });
+      }
+    }),
+});
+
 // ============ MAIN ROUTER ============
 export const appRouter = router({
   system: systemRouter,
@@ -470,6 +706,9 @@ export const appRouter = router({
   settings: settingsRouter,
   alerts: alertsRouter,
   export: exportRouter,
+  voice: voiceRouter,
+  image: imageRouter,
+  maps: mapsRouter,
 });
 
 export type AppRouter = typeof appRouter;
