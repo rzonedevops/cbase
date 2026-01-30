@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1766501556216,
+      "tag": "0000_even_patriot",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1766501693623,
+      "tag": "0001_medical_mantis",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1766501717712,
+      "tag": "0002_small_caretaker",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `chatMessages` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`sessionId` int NOT NULL,\n\t`role` enum('user','assistant','system') NOT NULL,\n\t`content` text NOT NULL,\n\t`signalScore` decimal(5,3),\n\t`aiRequests` int DEFAULT 1,\n\t`tokensUsed` int,\n\t`latencyMs` int,\n\t`metadata` json,\n\t`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n\tCONSTRAINT `chatMessages_id` PRIMARY KEY(`id`)\n)",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3toqCak8FVUcNAx.a115fa71bfe1 --database 9LHEQeubFHnQup6Tcc9W3W --execute CREATE TABLE IF NOT EXISTS `chatMessages` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`sessionId` int NOT NULL,\n\t`role` enum('user','assistant','system') NOT NULL,\n\t`content` text NOT NULL,\n\t`signalScore` decimal(5,3),\n\t`aiRequests` int DEFAULT 1,\n\t`tokensUsed` int,\n\t`latencyMs` int,\n\t`metadata` json,\n\t`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n\tCONSTRAINT `chatMessages_id` PRIMARY KEY(`id`)\n)",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 191
+}

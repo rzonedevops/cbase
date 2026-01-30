@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `accountSettings` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`userId` int NOT NULL,\n\t`plan` enum('free','pro','enterprise') NOT NULL DEFAULT 'free',\n\t`creditsUsed` int NOT NULL DEFAULT 0,\n\t`creditsTotal` int NOT NULL DEFAULT 50,\n\t`creditsResetAt` timestamp NULL,\n\t`signalScoreThreshold` decimal(3,2) DEFAULT 0.5,\n\t`alertsEnabled` int DEFAULT 1,\n\t`apiKey` varchar(64),\n\t`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n\t`updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `accountSettings_id` PRIMARY KEY(`id`),\n\tCONSTRAINT `accountSettings_userId_unique` UNIQUE(`userId`)\n)",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3toqCak8FVUcNAx.a115fa71bfe1 --database 9LHEQeubFHnQup6Tcc9W3W --execute CREATE TABLE IF NOT EXISTS `accountSettings` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`userId` int NOT NULL,\n\t`plan` enum('free','pro','enterprise') NOT NULL DEFAULT 'free',\n\t`creditsUsed` int NOT NULL DEFAULT 0,\n\t`creditsTotal` int NOT NULL DEFAULT 50,\n\t`creditsResetAt` timestamp NULL,\n\t`signalScoreThreshold` decimal(3,2) DEFAULT 0.5,\n\t`alertsEnabled` int DEFAULT 1,\n\t`apiKey` varchar(64),\n\t`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n\t`updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `accountSettings_id` PRIMARY KEY(`id`),\n\tCONSTRAINT `accountSettings_userId_unique` UNIQUE(`userId`)\n)",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 52
+}
