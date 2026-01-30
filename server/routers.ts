@@ -8,6 +8,10 @@ import { storagePut } from "./storage";
 import { notifyOwner } from "./_core/notification";
 import { nanoid } from "nanoid";
 import * as db from "./db";
+import { transcribeAudio } from "./_core/voiceTranscription";
+import { generateImage } from "./_core/imageGeneration";
+import { makeRequest, GeocodingResult, DirectionsResult, DistanceMatrixResult, PlacesSearchResult, PlaceDetailsResult, ElevationResult, TimeZoneResult } from "./_core/map";
+import { TRPCError } from "@trpc/server";
 
 // ============ AGENT ROUTER ============
 const agentRouter = router({
@@ -453,6 +457,153 @@ const exportRouter = router({
   }),
 });
 
+// ============ VOICE TRANSCRIPTION ROUTER ============
+const voiceRouter = router({
+  transcribe: protectedProcedure
+    .input(z.object({
+      audioUrl: z.string().url(),
+      language: z.string().optional(),
+      prompt: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const result = await transcribeAudio(input);
+      
+      // Check if it's an error
+      if ('error' in result) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: result.error,
+          cause: result,
+        });
+      }
+      
+      return result;
+    }),
+});
+
+// ============ IMAGE GENERATION ROUTER ============
+const imageRouter = router({
+  generate: protectedProcedure
+    .input(z.object({
+      prompt: z.string().min(1),
+      originalImages: z.array(z.object({
+        url: z.string().optional(),
+        b64Json: z.string().optional(),
+        mimeType: z.string().optional(),
+      })).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      return generateImage(input);
+    }),
+});
+
+// ============ MAPS ROUTER ============
+const mapsRouter = router({
+  geocode: protectedProcedure
+    .input(z.object({
+      address: z.string().optional(),
+      latlng: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      if (!input.address && !input.latlng) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Either address or latlng must be provided',
+        });
+      }
+      return makeRequest<GeocodingResult>('/maps/api/geocode/json', input);
+    }),
+
+  directions: protectedProcedure
+    .input(z.object({
+      origin: z.string(),
+      destination: z.string(),
+      mode: z.enum(['driving', 'walking', 'bicycling', 'transit']).optional(),
+      waypoints: z.string().optional(),
+      alternatives: z.boolean().optional(),
+    }))
+    .query(async ({ input }) => {
+      return makeRequest<DirectionsResult>('/maps/api/directions/json', input);
+    }),
+
+  distanceMatrix: protectedProcedure
+    .input(z.object({
+      origins: z.string(),
+      destinations: z.string(),
+      mode: z.enum(['driving', 'walking', 'bicycling', 'transit']).optional(),
+      units: z.enum(['metric', 'imperial']).optional(),
+    }))
+    .query(async ({ input }) => {
+      return makeRequest<DistanceMatrixResult>('/maps/api/distancematrix/json', input);
+    }),
+
+  placeSearch: protectedProcedure
+    .input(z.object({
+      query: z.string(),
+      location: z.string().optional(),
+      radius: z.number().optional(),
+      type: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      return makeRequest<PlacesSearchResult>('/maps/api/place/textsearch/json', input);
+    }),
+
+  nearbySearch: protectedProcedure
+    .input(z.object({
+      location: z.string(),
+      radius: z.number(),
+      type: z.string().optional(),
+      keyword: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      return makeRequest<PlacesSearchResult>('/maps/api/place/nearbysearch/json', input);
+    }),
+
+  placeDetails: protectedProcedure
+    .input(z.object({
+      place_id: z.string(),
+      fields: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      return makeRequest<PlaceDetailsResult>('/maps/api/place/details/json', input);
+    }),
+
+  elevation: protectedProcedure
+    .input(z.object({
+      locations: z.string().optional(),
+      path: z.string().optional(),
+      samples: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      if (!input.locations && !input.path) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Either locations or path must be provided',
+        });
+      }
+      return makeRequest<ElevationResult>('/maps/api/elevation/json', input);
+    }),
+
+  timeZone: protectedProcedure
+    .input(z.object({
+      location: z.string(),
+      timestamp: z.number(),
+    }))
+    .query(async ({ input }) => {
+      return makeRequest<TimeZoneResult>('/maps/api/timezone/json', input);
+    }),
+
+  placeAutocomplete: protectedProcedure
+    .input(z.object({
+      input: z.string(),
+      location: z.string().optional(),
+      radius: z.number().optional(),
+    }))
+    .query(async ({ input: params }) => {
+      return makeRequest('/maps/api/place/autocomplete/json', params);
+    }),
+});
+
 // ============ MAIN ROUTER ============
 export const appRouter = router({
   system: systemRouter,
@@ -470,6 +621,9 @@ export const appRouter = router({
   settings: settingsRouter,
   alerts: alertsRouter,
   export: exportRouter,
+  voice: voiceRouter,
+  image: imageRouter,
+  maps: mapsRouter,
 });
 
 export type AppRouter = typeof appRouter;
